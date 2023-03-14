@@ -1,0 +1,402 @@
+---
+title: "Tuberculosis report from 2000 - 2020"
+author: "Josiah Paul"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+## The Effect of Tuberculosis on the Globe
+### Table of Contents
+* Introduction
+* Setting up my environment
+* Data cleaning
+* Data summary *gaining insight*
+* Exploratory Data Analysis
+* Inferences
+* Conclusion
+
+### Introduction
+The data was gotten from **WHO**(*world health organisation*) <http://www.who.int>. The data was complex as three tables had to be joined together to be able take advantage of the full data set with several analysis carried out on the cases of tuberculosis, HIV-Tuberculosis cases and funding of Tuberculosis care all over the world. </br>
+** new- new cases
+** sp - smear positive
+** sn - smear negative
+** ep - extra-plumotary
+** f - female
+** m - male
+** u - unknown
+** whoregion - 
+
+### Setting up my environment
+Notes: Setting up my R environment by loading needed packages like tidyverse, ggplot2, dpylr, rmarkdown, forcats, magrittr, readr, stringr, tibble and tidyr.
+```{r loading packages}
+library(dplyr)
+library(tidyverse)
+library(tidyr)
+library(tibble)
+library(stringr)
+library(readr)
+library(magrittr)
+library(lubridate)
+library(ggplot2)
+library(forcats)
+library(knitr)
+```
+#### getting and loading the files into R
+Notes: The file path was checked and initiated using the get function. The three different files were loaded into R and they where later joined together into a table for ease of use.
+```{r loading data to analyze}
+#To print the working directory file path
+getwd()
+
+# to comfirm the existence of our file in the right path
+file.exists("Excel/TB_notifications_2022-08-19.csv")
+file.exists("Excel/TB_outcomes_2022-08-20.csv")
+file.exists("Excel/TB_burden_countries_2022-08-19.csv")
+file.exists("Excel/TB_expenditure_utilisation_2022-08-19.csv")
+
+#with the help of the readr package, reading a csv file using the read_csv command
+tuberculosis <- read_csv("Excel/TB_notifications_2022-08-19.csv")
+tbhiv <- read_csv("Excel/TB_outcomes_2022-08-20.csv")
+funding <- read_csv("Excel/TB_expenditure_utilisation_2022-08-19.csv")
+estimates <- read_csv("Excel/TB_burden_countries_2022-08-19.csv")
+```
+#### Joining tables using the Join clause
+```{r Joining tables}
+#combining the four dataset
+tuberculosis_join <- tuberculosis %>% 
+  full_join(tbhiv, by = c("country", "year")) %>%
+  full_join(estimates, by = c('country', "year")) %>%
+  full_join(funding, by = c('country', "year"))
+```
+### Data Cleaning
+** Getting an overview of the data
+```{r}
+# printing the structure of the data to have an overview of how the data looks like
+str(tuberculosis)
+```
+1. Deleting columns that are not required li>
+2. Handling zero values li>
+3. Checking and droping null values li>
+4. Removing duplicate values li>
+5. Transforming the data from wide to long using tidyr li>
+6. Separating a column into several for simplicity li>
+7. Adjusting and classifying the age data (*Adding age range: 0-19, 20-34, 35-44, 45-65, 65+*) li>
+8. Filtered for year 2000 to 2020 li>
+9. Changing values
+```{r data cleaning, echo=TRUE}
+tuber <- tuberculosis %>% 
+  gather(key = type, value = cases, new_sp_m04:newrel_f65,-agegroup_option,
+         -rel_in_agesex_flg, na.rm = TRUE) %>%
+  select(country, g_whoregion, year, type, cases) %>%
+  mutate(
+    type = stringr::str_replace(type, "newrel", "new_rel")
+  ) %>%
+  separate(type, c("new", "var", "sexage")) %>%
+  mutate(sexage = stringr::str_replace(sexage, "unk", "u")) %>%
+  mutate(sexage = stringr::str_replace(sexage, "sexu", "u")) %>%
+  separate(sexage, c("sex", "age"), sep = 1) %>%
+  #filtering for only active cases i.e cases greater than one and from 2000 till 2020
+  filter(cases > 0, year >= 2000) %>%
+  
+  # the 15plus values are removed from the data set because it is the combination of all ages from 15 and above thus causing the number of cases to be repeated and calculated repeatedly thereby providing an inaccurate analysis
+  filter(age != "15plus")
+```
+
+```{r}
+tuber %>% head(10)
+```
+
+
+#### Adjusting and classifying the age data (*Adding age range: 0-19, 20-34, 35-44, 45-65, 65+*)
+```{r}
+tuber$age[tuber$age == "04"] <- "0-19"
+ 
+ tuber$age[tuber$age == "514"] <- "0-19"
+ 
+ tuber$age[tuber$age == "014"] <- "0-19"
+ 
+ tuber$age[tuber$age == "59"] <- "0-19"
+ 
+ tuber$age[tuber$age == "1014"] <- "0-19"
+ 
+ tuber$age[tuber$age == "1519"] <- "0-19"
+ 
+ tuber$age[tuber$age == "1524"] <- "20-34"
+ 
+ tuber$age[tuber$age == "2024"] <- "20-34"
+ 
+ tuber$age[tuber$age == "2534"] <- "20-34"
+ 
+ tuber$age[tuber$age == "3544"] <- "35-44"
+ 
+ tuber$age[tuber$age == "4554"] <- "45-64"
+ 
+ tuber$age[tuber$age == "5564"] <- "45-64"
+ 
+ tuber$age[tuber$age == "65"] <- "65+"
+ 
+ 
+ #changing the abbreviation of the g_whoregion for proper comprehension
+ tuber$g_whoregion[tuber$g_whoregion == "AFR"] <- "Africa"
+ 
+ tuber$g_whoregion[tuber$g_whoregion == "AMR"] <- "America"
+ 
+ tuber$g_whoregion[tuber$g_whoregion == "EMR"] <- "Eastern Mediterrenian"
+ 
+ tuber$g_whoregion[tuber$g_whoregion == "EUR"] <- "Europe"
+ 
+ tuber$g_whoregion[tuber$g_whoregion == "SEA"] <- "South-East Asia"
+ 
+ tuber$g_whoregion[tuber$g_whoregion == "WPR"] <- "Western Pacific"
+```
+
+```{r}
+kable(head(tuber))
+```
+
+
+### Data summary *gaining insight*
+Note: The data was briefly summarized according to whoregion to show common trends of year, age and sex across regions
+
+```{r whoregion, echo=TRUE}
+# showing the trend of tuberculosis cases from 1980 - 2020 for each WHO regions
+ ggplot(data = tuber, mapping = aes(x = year, y = cases)) +
+   geom_col() +
+   facet_wrap(~g_whoregion)
+```
+
+```{r whoregio, echo=TRUE}
+# showing the distribution of tuberculosis cases according to age categories for each WHO regions
+ ggplot(data = tuber, mapping = aes(x = age, y = cases)) +
+   geom_col() +
+   facet_wrap(~g_whoregion)
+```
+
+```{r whoregi, echo=TRUE}
+# showing the distribution of tuberculosis cases between male and female  
+ ggplot(data = tuber, mapping = aes(x = sex, y = cases)) +
+   geom_col() +
+   facet_wrap(~g_whoregion)
+```
+
+```{r whoregion grouping, echo=TRUE}
+tuber %>% 
+   group_by(., g_whoregion) %>%
+   summarise(., cases = sum(cases)) %>%
+   arrange(., desc(cases)) %>% head()
+```
+
+## Explanatory Data Analysis
+### Question 1: What has been the trend of tuberculosis cases from 2000 to 2020?
+Which year has the highest tuberculosis cases?
+```{r}
+by_year <- tuber %>%
+  group_by(.,year) %>%
+  summarise(., total_cases = sum(cases)) 
+```
+
+```{r}
+kable(by_year)
+```
+
+
+plotting the trend of tuberculosis cases by year
+```{r}
+by_year %>% 
+  ggplot(aes (x = year)) +
+  geom_line(aes(y = total_cases))
+```
+</br>The year with the highest tuberculosis cases
+```{r}
+#What year has the highest number of tuberculosis cases?
+by_year %>%
+  arrange(desc(total_cases)) %>%
+  head(1)
+```
+### Question 2: What is the trend of tuberculosis cases in countries across the globe?
+What are the 10 countries with the top tuberculosis cases?
+What are the 10 countries with the least tuberculosis cases?
+```{r}
+# grouping cases by country
+by_country <- tuber %>%
+  group_by(.,country) %>%
+  summarise(., total_cases = sum(cases))
+```
+#### What are the 10 countries with the top tuberculosis cases?
+```{r}
+# selecting the top 10 country with the highest tuberculosis cases through all
+# the years
+top_10 <- by_country %>%
+  arrange(desc(total_cases)) %>%
+  head(10)
+kable(top_10)  
+  # a plot of the most country with the lowest tuberculosis cases
+  ggplot(top_10, aes(total_cases, fct_reorder(country, total_cases))) +
+  geom_point() 
+```
+</br> 
+#### What are the 10 countries with the least tuberculosis cases?
+```{r}
+# selecting the least 10 country with the least tuberculosis cases through all
+# the years
+least_10 <- by_country %>%
+  arrange(total_cases) %>%
+  head(10)
+kable(least_10)
+#a plot of the least country with the lowest tuberculosis cases
+ggplot(least_10, aes(total_cases, fct_reorder(country, total_cases))) +
+geom_point()
+```
+
+### Question 3: What is the pattern of tuberculosis cases across age groups and sex
+checking for pattern across age groups and noting age groups that has the highest frequency of tuberculosis cases
+```{r}
+# grouping data by age_group 
+by_age_group <- tuber %>%
+  group_by(.,age) %>%
+  summarise(., total_cases = sum(cases))
+
+kable(by_age_group)
+
+# a plot of the age group that frequently occurs
+ggplot(by_age_group, aes(x = age, y = total_cases)) +
+  geom_col()
+```
+</br>It is shown the the middle aged 20-64 has the highest case of tuberculosis
+
+#### checking the sex with the highest cases of tuberculosis
+```{r grouping by sex}
+by_sex <- tuber %>%
+  group_by(.,sex) %>%
+  summarise(., total_cases = sum(cases)) %>%
+  arrange(., desc(total_cases))
+
+kable(by_sex)
+
+# a plot of the sex that frequently occurs
+ggplot(by_sex, aes(x = sex, y = total_cases)) +
+  geom_col()
+
+```
+
+### Question 4: Tuberculosis cases with HIV across the globe
+#### Selecting TBHIV cases from the general table 'tuberculosis_join'
+```{r}
+tbhiv1 <- select(tuberculosis_join, country, year,
+                 success_tbhiv_treatment = tbhiv_succ, failed_tbhiv_treatment = tbhiv_fail,
+                 tbhiv_death = tbhiv_died,
+                 tbhiv_lost) %>% 
+  drop_na() %>%
+  mutate(tbhiv_total = success_tbhiv_treatment + failed_tbhiv_treatment + tbhiv_death + tbhiv_lost)
+```
+
+```{r include=FALSE}
+by_year_country <- tuber %>%
+  group_by(.,country, year) %>%
+  summarise(., total_cases = sum(cases))
+```
+
+##### Country with the most TBHIV cases all over the world for the year 2019
+```{r}
+tbhiv1 %>%
+  group_by(.,country, year) %>%
+  summarise(., total_tbhiv_cases = sum(tbhiv_total)) %>%
+  filter(., total_tbhiv_cases > 0, year == 2019)%>%
+  arrange(desc(total_tbhiv_cases)) %>%
+  head(10)
+```
+Note: 8 out of the 10 countries with the most TBHIV cases were African countries and a huge amount of the countries are in the southern part of the continent
+
+##### Viewing countries with the highest TBHIV rate (2019)
+```{r}
+# viewing countries with the most percentage for year 2019 of hiv to tuberculosis cases estimates
+tbhiv1 %>% 
+  full_join(by_year_country, by = c("country", "year")) %>%
+  select(., country, year, total_cases, tbhiv_total) %>%
+  drop_na()%>%
+  mutate(., hivtb_rate = (tbhiv_total/total_cases)*100) %>%
+  arrange(desc(hivtb_rate)) %>% 
+  filter(., hivtb_rate < 100, total_cases > 100000, year == 2019)
+```
+South Africa is the country with the most TBHIV rate all over the world as at 2019 with a TBHIV to total tuberculosis cases rate at 42.5%, Kenya was the second highest with 18.9% and Nigeria third with 9.65%
+
+ 
+#### checking for the trend of TBHIV cases from 2012 till 2019
+```{r}
+tbhiv_by_year <- tbhiv1 %>%
+  group_by(.,year) %>%
+  summarise(., tbhiv_total = sum(tbhiv_total))
+
+```
+
+```{r}
+kable(tbhiv_by_year)
+```
+
+
+```{r}
+# plotting total tuberculosis and HIV cases against year
+tbhiv_by_year %>% ggplot(aes(x = year))+
+  geom_point(aes(y = tbhiv_total))+
+  geom_line(aes(y = tbhiv_total))
+```
+Note: The year with the highest TBHIV rate is 2015 and it has been falling since then
+
+### Question 5: What is the tuberculosis mortality rate across the globe?
+```{r}
+# calculation the estimated mortality recorded and the rate of mortality to the 
+# total tuberculosis cases
+tb_mortality <- select(tuberculosis_join, country, e_pop_num, e_mort_num) %>%
+  group_by(., country) %>%
+  drop_na() %>%
+  summarise(., total_population = max(e_pop_num, na.rm = TRUE)
+            , tb_death = mean(e_mort_num, na.rm = TRUE)) %>%
+  full_join(by_country, by = "country") %>%
+  mutate(., mortality_rate = (tb_death/total_cases)*100) %>%
+  drop_na() %>%
+  arrange(., desc(mortality_rate)) 
+  
+
+
+```
+
+```{r}
+kable(tb_mortality)
+```
+
+#### visualising countries with the highest tb mortality rate and has tuberculosis cases of over 100000
+```{r}
+# visualising countries with the highest tb mortality rate and has tuberculosis
+# cases of over 100000
+tb_mortality %>% 
+  filter(total_cases > 100000) %>%
+  head(10) 
+
+
+```
+Note: All top 10 countries with highest tuberculosis mortality rate are African countries. This shows the lack and access to quality health care services in virtually all countries in Africa.
+
+
+```{r}
+#worldwide tuberculosis death rate 
+tb_mortality %>% 
+  summarise(., total_cases = sum(total_cases, na.rm = TRUE),
+            total_death = sum(tb_death, na.rm = TRUE)) %>% 
+  mutate(., rate = (total_death/total_cases)*100)
+```
+Note: The global tuberculosis mortality rate is 2.21
+
+
+### Conclusion
+After thoroughly analyzing the WHO data set and answering questions through visualizations, below are the insight gotten from the data by the *Exploratory analysis* carried out on the data. </br>
+#### The first question 
+</br>
+"*What has been the trend of tuberculosis cases from 2000 to 2020?*" reveals the tuberculosis trends throughout all the years. I was seen that from 2000 till 2020 the trend has been progressing upward but a drastic drop was recorded in 2013. 2019 is the year with the highest ever recorded tuberculosis cases ever. </br>
+#### The second question 
+</br>
+***"What is the trend of tuberculosis cases in countries across the globe?"*** gave us insight to know countries that are heavy burdened with tuberculosis, we further checked the least burdened countries with tuberculosis. The top and least ten countries with tuberculosis cases were analyze and plotted for easy visualization. The nine out of ten countries with the most tuberculosis cases were **Asian** countries this is due to the large population in the region. </br>
+#### The third question
+</br>
+***"What is the pattern of tuberculosis cases across age groups and sex"*** reveals the age group that are predominant. It was gathered that what causes tuberculosis is the weakening of the immune system of individuals by the bacteria *Mycobacterium tuberculosis*. Mid-aged individuals (20-64) mostly engage in activities and habit such as smoking, alcohol intake and substance abuse that weakens the human immune system. Checking the total cases amongst male and females. The male gender are likely possible of engaging in health hazarduous activities than their female conterpart.
+#### The fourth question
+</br>
+***"Tuberculosis cases with HIV across the globe"***
